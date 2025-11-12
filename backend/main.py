@@ -65,28 +65,43 @@ async def generate_questions(materials: dict):
 Course Materials:
 {materials_text}
 
+IMPORTANT: Generate a mix of question types:
+- Some questions should be MULTIPLE CHOICE (with options A, B, C, D)
+- Some questions should be FREE RESPONSE (short answer questions where students write their answer)
+
 For each question, provide:
 1. The question text
-2. Multiple choice options (A, B, C, D)
-3. The correct answer
-4. A brief explanation
+2. The question type ("multiple_choice" or "free_response")
+3. If multiple choice: options (A, B, C, D)
+4. The correct answer (ALWAYS REQUIRED - for multiple choice use the letter, for free response provide the expected answer)
+5. A brief explanation
 
 Format your response as a JSON array with this structure:
-[
-  {{
-    "question": "Question text here?",
-    "options": {{
-      "A": "Option A",
-      "B": "Option B",
-      "C": "Option C",
-      "D": "Option D"
-    }},
-    "correct_answer": "A",
-    "explanation": "Brief explanation of the correct answer"
-  }}
-]
 
-Return ONLY the JSON array, no additional text."""
+For MULTIPLE CHOICE questions:
+{{
+  "question": "Question text here?",
+  "question_type": "multiple_choice",
+  "options": {{
+    "A": "Option A",
+    "B": "Option B",
+    "C": "Option C",
+    "D": "Option D"
+  }},
+  "correct_answer": "A",
+  "explanation": "Brief explanation of the correct answer"
+}}
+
+For FREE RESPONSE questions:
+{{
+  "question": "Question text here?",
+  "question_type": "free_response",
+  "options": null,
+  "correct_answer": "The expected correct answer or key points that should be included",
+  "explanation": "Brief explanation of the correct answer"
+}}
+
+Return ONLY the JSON array, no additional text. Include a mix of both question types."""
 
         response = openai.ChatCompletion.create(
             model="gpt-4",
@@ -130,9 +145,12 @@ Original question to improve:
 Context from course materials:
 {request.materials}
 
-Regenerate this question as a JSON object with this structure:
+Regenerate this question as a JSON object. You can create either a multiple choice or free response question.
+
+For MULTIPLE CHOICE questions, use this structure:
 {{
   "question": "Question text here?",
+  "question_type": "multiple_choice",
   "options": {{
     "A": "Option A",
     "B": "Option B",
@@ -142,6 +160,17 @@ Regenerate this question as a JSON object with this structure:
   "correct_answer": "A",
   "explanation": "Brief explanation of the correct answer"
 }}
+
+For FREE RESPONSE questions, use this structure:
+{{
+  "question": "Question text here?",
+  "question_type": "free_response",
+  "options": null,
+  "correct_answer": "The expected correct answer or key points that should be included",
+  "explanation": "Brief explanation of the correct answer"
+}}
+
+IMPORTANT: Always include the "correct_answer" field regardless of question type.
 
 Return ONLY the JSON object, no additional text."""
 

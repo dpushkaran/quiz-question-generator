@@ -102,7 +102,8 @@ function App() {
       totalQuestions: keptQuestions.length,
       questions: keptQuestions.map(q => ({
         question: q.question,
-        options: q.options,
+        question_type: q.question_type || (q.options ? 'multiple_choice' : 'free_response'),
+        options: q.options || null,
         correct_answer: q.correct_answer,
         explanation: q.explanation
       }))
@@ -251,25 +252,65 @@ function App() {
                   <div className="question-number">Question {index + 1}</div>
                   <div className="question-header">
                     <h3>{question.question}</h3>
-                    {question.status === 'kept' && (
-                      <span className="kept-badge">✓ Kept</span>
-                    )}
-                  </div>
-                  
-                  <div className="options-container">
-                    <div className="options-label">Answer Choices:</div>
-                    <div className="options">
-                      {Object.entries(question.options).map(([key, value]) => (
-                        <div key={key} className={`option ${key === question.correct_answer ? 'correct' : ''}`}>
-                          <span className="option-label">{key}.</span>
-                          <span className="option-text">{value}</span>
-                          {key === question.correct_answer && (
-                            <span className="correct-badge">Correct Answer</span>
-                          )}
-                        </div>
-                      ))}
+                    <div className="question-header-right">
+                      {question.question_type && (
+                        <span className="question-type-badge">
+                          {question.question_type === 'multiple_choice' ? 'Multiple Choice' : 'Free Response'}
+                        </span>
+                      )}
+                      {question.status === 'kept' && (
+                        <span className="kept-badge">✓ Kept</span>
+                      )}
                     </div>
                   </div>
+                  
+                  {question.question_type === 'multiple_choice' && question.options && (
+                    <div className="options-container">
+                      <div className="options-label">Answer Choices:</div>
+                      <div className="options">
+                        {Object.entries(question.options).map(([key, value]) => (
+                          <div key={key} className={`option ${key === question.correct_answer ? 'correct' : ''}`}>
+                            <span className="option-label">{key}.</span>
+                            <span className="option-text">{value}</span>
+                            {key === question.correct_answer && (
+                              <span className="correct-badge">Correct Answer</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {question.question_type === 'free_response' && (
+                    <div className="correct-answer-container">
+                      <div className="correct-answer-label">Expected Answer:</div>
+                      <div className="correct-answer-text">{question.correct_answer}</div>
+                    </div>
+                  )}
+                  
+                  {!question.question_type && question.options && (
+                    <div className="options-container">
+                      <div className="options-label">Answer Choices:</div>
+                      <div className="options">
+                        {Object.entries(question.options).map(([key, value]) => (
+                          <div key={key} className={`option ${key === question.correct_answer ? 'correct' : ''}`}>
+                            <span className="option-label">{key}.</span>
+                            <span className="option-text">{value}</span>
+                            {key === question.correct_answer && (
+                              <span className="correct-badge">Correct Answer</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {!question.question_type && !question.options && question.correct_answer && (
+                    <div className="correct-answer-container">
+                      <div className="correct-answer-label">Correct Answer:</div>
+                      <div className="correct-answer-text">{question.correct_answer}</div>
+                    </div>
+                  )}
                   
                   <div className="explanation">
                     <div className="explanation-label">Explanation:</div>
