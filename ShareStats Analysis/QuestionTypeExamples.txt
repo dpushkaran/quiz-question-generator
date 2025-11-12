@@ -1,0 +1,90 @@
+Examples of each question type:
+
+================================================================================
+
+SCHOICE Example:
+Section: Assumptions/Sphericity/Mauchly'S Test, Inferential Statistics/Parametric Techniques/Anova/Oneway Repeated Measures Anova
+
+Full Question (includes answer options/answer):
+--------------------------------------------------------------------------------
+In a one-way repeated measures ANOVA, a researcher needs to test, amongst other assumptions, the sphericity assumption. Consider the following statements about the sphericity assumption and answer the subsequent question. 
+1. This assumption does not apply when the within-subjects factor only has two levels. 
+2. When this assumption is severely violated, a researcher can use a repeated-measures multivariate test (MANOVA) as an alternative to the uncorrected F-test. 
+Which statement is true?
+Answerlist
+----------
+* both statements are true
+* only statement 1 is true
+* only statement 2 is true
+* both statements are false
+
+--------------------------------------------------------------------------------
+GitHub Link: https://github.com/ShareStats/itembank/tree/main/Assumptions/eur-assumptions-201-en
+================================================================================
+
+MCHOICE Example:
+Section: Inferential Statistics/Parametric Techniques/Anova/Mixed Design Anova
+
+Full Question (includes answer options/answer):
+--------------------------------------------------------------------------------
+Mixed design ANOVA's ...
+Answerlist
+----------
+* only include a mixture of within-group and repeated-measures variables.
+* require at least four independent variables.
+* None of the other answers is correct
+* cannot combine repeated-measures and independent designs.
+
+--------------------------------------------------------------------------------
+GitHub Link: https://github.com/ShareStats/itembank/tree/main/Inferential_Statistics/vufsw-mixeddesignanova-0251-en
+================================================================================
+
+NUM Example:
+Section: Assumptions/Homogeneity Of Variance/Levene'S Test
+
+Full Question (includes answer options/answer):
+--------------------------------------------------------------------------------
+*Testing effect* 
+Research has shown that when people learn words from a foreign language they better remember those words if they first study the words and then test themselves trying to recollect the words, compared to just studying the words twice. A researcher from the institute of psychology wants to know whether this so-called testing effect can be proven to exist in the classroom. She divides a group of 60 students into three groups [condition]. The students in group 1 study a list of 30 French words and their Dutch translation twice (1 = restudy). The students in group 2 study the list of 30 French words and their Dutch translation once and then test themselves (2 = testing). The students in group 3 just study the list of 30 French words and their Dutch translation once without testing themselves (3 = study_once). A week after the study phase, the students took a test where they had to give the Dutch translation of the 30 French words that they studied earlier. The total number of correct translations is represented by the variable score [score]. Additionally, the researcher included for each student his/her French grade [French].
+Open the data file.
+Conduct an analysis to determine whether there is a difference between the three conditions [condition] in terms of total number of correct translations [score]. Test whether there is a violation of the homogeneity of variances assumption for this analysis. What is the F-value for this assumption test? (3 decimals)
+**Download**: [SPSS file](eur-assumptions-101-en-data.sav), [CSV file](eur-assumptions-101-en-data.csv)
+
+--------------------------------------------------------------------------------
+GitHub Link: https://github.com/ShareStats/itembank/tree/main/Assumptions/eur-assumptions-101-en
+================================================================================
+
+STRING Example:
+Section: Assumptions/Normality
+
+Full Question (includes answer options/answer):
+--------------------------------------------------------------------------------
+Included in this question is SPSS output from a multiple regression model from a dataset from the US National Center of Educational Statistics. This dataset is called High School Beyond and has data on variables related to students’ academic achievement. Specifically, the outcome variable for the regression model is “Math Score” which is predicted from “Locus of Control”, “Self-Concept”, and “Reading Score”. In addition, the Appendix includes plots that were created from the same model. Use the plots to help you answer questions about assumptions of the regression model for the High School Beyond dataset. 
+Using only the plots, tables, and statistics provided in the appendix, can you determine whether the normality assumption is upheld or violated? If yes, state which plot, table, or statistic you would use and state your conclusion. If the appropriate plot, table, or statistic is not provided, name which plot, table or statistic you would need to assess this assumption. 
+![](uu-Normality-800-en-tabel.jpg)
+  
+
+--------------------------------------------------------------------------------
+GitHub Link: https://github.com/ShareStats/itembank/tree/main/Assumptions/uu-Normality-800-en
+================================================================================
+
+CLOZE Example:
+Section: Descriptive Statistics
+
+Full Question (includes answer options/answer):
+--------------------------------------------------------------------------------
+
+* Download**: [SPSS file](uu-Descriptive-statistics-601-en-data.sav), [CSV file](uu-Descriptive-statistics-601-en-data.csv)
+Use the data file to answer the questions.
+
+* Answer each question with all decimals listed in the output.**
+Answerlist
+----------
+* The number of respondents whose score on grammar is known is....
+* The standard deviation of the score on spelling is....
+* The minimum score obtained on technical reading is....
+* The mode of vocabulary is...
+
+--------------------------------------------------------------------------------
+GitHub Link: https://github.com/ShareStats/itembank/tree/main/Descriptive-statistics/uu-Descriptive-statistics-601-en
+================================================================================
