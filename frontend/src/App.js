@@ -53,7 +53,7 @@ function App() {
 
   const handleKeep = (questionId) => {
     setQuestions(prev => prev.map(q => 
-      q.id === questionId ? { ...q, status: 'kept' } : q
+      q.id === questionId ? { ...q, status: q.status === 'kept' ? undefined : 'kept' } : q
     ));
   };
 
