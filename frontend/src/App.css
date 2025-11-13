@@ -475,6 +475,48 @@ section {
   font-size: 0.9375rem;
 }
 
+/* Supplemental Data Container */
+.supplemental-data-container {
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  background: #f0f9ff;
+  border-radius: 8px;
+  border-left: 4px solid #0ea5e9;
+}
+
+.supplemental-data-label {
+  color: #0c4a6e;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+
+.supplemental-data-description {
+  color: #075985;
+  font-size: 0.875rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.6;
+  font-style: italic;
+}
+
+.supplemental-data-content {
+  background: white;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+.supplemental-data-content pre {
+  margin: 0;
+  color: #1e293b;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+}
+
 /* Explanation */
 .explanation {
   margin-top: 1.5rem;

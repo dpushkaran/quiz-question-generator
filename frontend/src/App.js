@@ -105,7 +105,8 @@ function App() {
         question_type: q.question_type || (q.options ? 'multiple_choice' : 'free_response'),
         options: q.options || null,
         correct_answer: q.correct_answer,
-        explanation: q.explanation
+        explanation: q.explanation,
+        supplemental_data: q.supplemental_data || null
       }))
     };
 
@@ -309,6 +310,22 @@ function App() {
                     <div className="correct-answer-container">
                       <div className="correct-answer-label">Correct Answer:</div>
                       <div className="correct-answer-text">{question.correct_answer}</div>
+                    </div>
+                  )}
+                  
+                  {question.supplemental_data && (
+                    <div className="supplemental-data-container">
+                      <div className="supplemental-data-label">
+                        📊 Supplemental Data Required ({question.supplemental_data.type || 'data'}):
+                      </div>
+                      {question.supplemental_data.description && (
+                        <div className="supplemental-data-description">
+                          {question.supplemental_data.description}
+                        </div>
+                      )}
+                      <div className="supplemental-data-content">
+                        <pre>{question.supplemental_data.data}</pre>
+                      </div>
                     </div>
                   )}
                   

@@ -60,10 +60,22 @@ async def generate_questions(materials: dict):
         
         materials_text = "\n\n".join([f"{key}:\n{value}" for key, value in materials.items()])
         
+        # Check if previous quizzes are included
+        has_previous_quizzes = "quizzes" in materials and materials.get("quizzes", "").strip()
+        
         prompt = f"""You are an expert at creating educational quiz questions. Based on the following course materials, generate 5 diverse quiz questions that test understanding of key concepts.
 
 Course Materials:
 {materials_text}
+
+CRITICAL INSTRUCTIONS:
+1. DO NOT copy or duplicate any questions from previous quizzes. Create entirely NEW and ORIGINAL questions.
+2. Use previous quizzes only as a reference for:
+   - Understanding the topics and concepts covered
+   - Understanding the difficulty level and style
+   - Understanding what types of questions are appropriate
+3. Generate questions that test the SAME concepts but are COMPLETELY DIFFERENT from any questions in previous quizzes.
+4. If a question requires supplemental data (like a dataset, table, figure, code snippet, or data file), you MUST include that data in the "supplemental_data" field.
 
 IMPORTANT: Generate a mix of question types:
 - Some questions should be MULTIPLE CHOICE (with options A, B, C, D)
@@ -75,6 +87,7 @@ For each question, provide:
 3. If multiple choice: options (A, B, C, D)
 4. The correct answer (ALWAYS REQUIRED - for multiple choice use the letter, for free response provide the expected answer)
 5. A brief explanation
+6. If the question requires supplemental data (datasets, tables, figures, code, etc.), include it in "supplemental_data"
 
 Format your response as a JSON array with this structure:
 
@@ -89,7 +102,8 @@ For MULTIPLE CHOICE questions:
     "D": "Option D"
   }},
   "correct_answer": "A",
-  "explanation": "Brief explanation of the correct answer"
+  "explanation": "Brief explanation of the correct answer",
+  "supplemental_data": null
 }}
 
 For FREE RESPONSE questions:
@@ -98,10 +112,25 @@ For FREE RESPONSE questions:
   "question_type": "free_response",
   "options": null,
   "correct_answer": "The expected correct answer or key points that should be included",
-  "explanation": "Brief explanation of the correct answer"
+  "explanation": "Brief explanation of the correct answer",
+  "supplemental_data": null
 }}
 
-Return ONLY the JSON array, no additional text. Include a mix of both question types."""
+If a question requires supplemental data (e.g., a dataset, table, figure, code snippet), include it like this:
+{{
+  "question": "Question that requires data...",
+  "question_type": "multiple_choice",
+  "options": {{...}},
+  "correct_answer": "A",
+  "explanation": "...",
+  "supplemental_data": {{
+    "type": "dataset|table|figure|code|other",
+    "description": "Brief description of what the supplemental data is",
+    "data": "The actual data, table content, code, or description of where to find it. For datasets, provide CSV-like format or structured data."
+  }}
+}}
+
+Return ONLY the JSON array, no additional text. Include a mix of both question types. Remember: ALL questions must be ORIGINAL and NOT copied from previous quizzes."""
 
         response = openai.ChatCompletion.create(
             model="gpt-4",
@@ -119,6 +148,12 @@ Return ONLY the JSON array, no additional text. Include a mix of both question t
             response_text = "\n".join(response_text.split("\n")[1:-1])
         
         questions = json.loads(response_text)
+        
+        # Ensure all questions have supplemental_data field (set to null if not provided)
+        for question in questions:
+            if "supplemental_data" not in question:
+                question["supplemental_data"] = None
+        
         return JSONResponse(content={"questions": questions})
     
     except Exception as e:
@@ -145,6 +180,8 @@ Original question to improve:
 Context from course materials:
 {request.materials}
 
+CRITICAL: Do NOT copy the original question. Create a NEW question that addresses the feedback while testing similar concepts.
+
 Regenerate this question as a JSON object. You can create either a multiple choice or free response question.
 
 For MULTIPLE CHOICE questions, use this structure:
@@ -158,7 +195,8 @@ For MULTIPLE CHOICE questions, use this structure:
     "D": "Option D"
   }},
   "correct_answer": "A",
-  "explanation": "Brief explanation of the correct answer"
+  "explanation": "Brief explanation of the correct answer",
+  "supplemental_data": null
 }}
 
 For FREE RESPONSE questions, use this structure:
@@ -167,10 +205,20 @@ For FREE RESPONSE questions, use this structure:
   "question_type": "free_response",
   "options": null,
   "correct_answer": "The expected correct answer or key points that should be included",
-  "explanation": "Brief explanation of the correct answer"
+  "explanation": "Brief explanation of the correct answer",
+  "supplemental_data": null
 }}
 
-IMPORTANT: Always include the "correct_answer" field regardless of question type.
+If the question requires supplemental data (dataset, table, figure, code, etc.), include it in "supplemental_data":
+{{
+  "supplemental_data": {{
+    "type": "dataset|table|figure|code|other",
+    "description": "Brief description",
+    "data": "The actual data or content"
+  }}
+}}
+
+IMPORTANT: Always include the "correct_answer" field regardless of question type. If no supplemental data is needed, set "supplemental_data" to null.
 
 Return ONLY the JSON object, no additional text."""
 
@@ -190,6 +238,11 @@ Return ONLY the JSON object, no additional text."""
             response_text = "\n".join(response_text.split("\n")[1:-1])
         
         question = json.loads(response_text)
+        
+        # Ensure supplemental_data field exists
+        if "supplemental_data" not in question:
+            question["supplemental_data"] = None
+        
         return JSONResponse(content={"question": question})
     
     except Exception as e:
