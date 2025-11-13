@@ -70,12 +70,18 @@ Course Materials:
 
 CRITICAL INSTRUCTIONS:
 1. DO NOT copy or duplicate any questions from previous quizzes. Create entirely NEW and ORIGINAL questions.
-2. Use previous quizzes only as a reference for:
+2. DO NOT copy any VALUES, NUMBERS, DATASETS, EXAMPLES, or DATA from previous quizzes. All numerical values, sample data, datasets, examples, scenarios, and any other data used in your questions must be COMPLETELY NEW and DIFFERENT from previous quizzes.
+3. Use previous quizzes only as a reference for:
    - Understanding the topics and concepts covered
    - Understanding the difficulty level and style
    - Understanding what types of questions are appropriate
-3. Generate questions that test the SAME concepts but are COMPLETELY DIFFERENT from any questions in previous quizzes.
-4. If a question requires supplemental data (like a dataset, table, figure, code snippet, or data file), you MUST include that data in the "supplemental_data" field.
+4. Generate questions that test the SAME concepts but are COMPLETELY DIFFERENT from any questions in previous quizzes, using:
+   - Different numerical values
+   - Different datasets and sample data
+   - Different examples and scenarios
+   - Different variable names and contexts
+   - Different specific details while maintaining the same conceptual focus
+5. If a question requires supplemental data (like a dataset, table, figure, code snippet, or data file), you MUST include that data in the "supplemental_data" field. This supplemental data must also be ORIGINAL and not copied from previous quizzes.
 
 IMPORTANT: Generate a mix of question types:
 - Some questions should be MULTIPLE CHOICE (with options A, B, C, D)
@@ -130,7 +136,12 @@ If a question requires supplemental data (e.g., a dataset, table, figure, code s
   }}
 }}
 
-Return ONLY the JSON array, no additional text. Include a mix of both question types. Remember: ALL questions must be ORIGINAL and NOT copied from previous quizzes."""
+Return ONLY the JSON array, no additional text. Include a mix of both question types. 
+
+REMEMBER: 
+- ALL questions must be ORIGINAL and NOT copied from previous quizzes
+- ALL values, numbers, datasets, examples, and data must be NEW and DIFFERENT from previous quizzes
+- Create fresh scenarios, examples, and data while testing the same concepts"""
 
         response = openai.ChatCompletion.create(
             model="gpt-4",
@@ -180,7 +191,10 @@ Original question to improve:
 Context from course materials:
 {request.materials}
 
-CRITICAL: Do NOT copy the original question. Create a NEW question that addresses the feedback while testing similar concepts.
+CRITICAL INSTRUCTIONS:
+1. Do NOT copy the original question. Create a NEW question that addresses the feedback while testing similar concepts.
+2. Do NOT copy any VALUES, NUMBERS, DATASETS, EXAMPLES, or DATA from the original question. Use completely NEW and DIFFERENT values, examples, scenarios, and data.
+3. Create fresh numerical values, sample data, examples, and scenarios while maintaining the same conceptual focus.
 
 Regenerate this question as a JSON object. You can create either a multiple choice or free response question.
 
@@ -219,6 +233,11 @@ If the question requires supplemental data (dataset, table, figure, code, etc.),
 }}
 
 IMPORTANT: Always include the "correct_answer" field regardless of question type. If no supplemental data is needed, set "supplemental_data" to null.
+
+REMEMBER: 
+- Create a NEW question, not a copy of the original
+- Use NEW values, numbers, datasets, examples, and data - do not reuse any values from the original question
+- Test the same concepts but with completely different specifics
 
 Return ONLY the JSON object, no additional text."""
 
