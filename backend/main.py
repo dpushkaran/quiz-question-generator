@@ -185,7 +185,16 @@ Original question to improve:
 """
         
         if request.feedback:
-            prompt += f"Feedback for improvement: {request.feedback}\n\n"
+            # Check if feedback contains multiple sections (previous feedback history)
+            if "--- Previous Feedback ---" in request.feedback:
+                prompt += f"""Feedback for improvement (includes previous feedback history):
+{request.feedback}
+
+IMPORTANT: The feedback above may contain multiple sections separated by "--- Previous Feedback ---". 
+Please consider ALL feedback provided - both previous feedback and the most recent feedback - when regenerating the question.
+Address all concerns and improvements mentioned across all feedback sections.\n\n"""
+            else:
+                prompt += f"Feedback for improvement: {request.feedback}\n\n"
         
         prompt += f"""
 Context from course materials:
