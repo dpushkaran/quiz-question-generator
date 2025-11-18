@@ -28,6 +28,9 @@ class RegenerateRequest(BaseModel):
     feedback: Optional[str] = None
     materials: str
 
+class SummaryRequest(BaseModel):
+    slides_text: str
+
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     """Upload and extract text from slides/quizzes."""
@@ -51,6 +54,58 @@ async def upload_file(file: UploadFile = File(...)):
             os.unlink(tmp_path)
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
+@app.post("/generate-slides-summary")
+async def generate_slides_summary(request: SummaryRequest):
+    """Generate a summary and topic list from slides text."""
+    try:
+        if not openai.api_key:
+            raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+        
+        prompt = f"""You are an expert at analyzing educational content. Based on the following lecture slides, create:
+
+1. A comprehensive summary of approximately 450 words that captures the key concepts, main ideas, and important information covered in the slides.
+2. A complete list of all topics covered in the slides.
+
+Lecture Slides Content:
+{request.slides_text}
+
+Please provide your response as a JSON object with this exact structure:
+{{
+  "summary": "Your 450-word summary here. Make sure it's comprehensive and captures all key concepts.",
+  "topics": [
+    "Topic 1",
+    "Topic 2",
+    "Topic 3",
+    ...
+  ]
+}}
+
+The topics list should include ALL major topics, concepts, and themes covered in the slides. Be thorough and comprehensive.
+
+Return ONLY the JSON object, no additional text."""
+
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are an expert educational content analyzer."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3,
+            max_tokens=1500
+        )
+        
+        response_text = response.choices[0].message.content.strip()
+        
+        if response_text.startswith("```"):
+            response_text = "\n".join(response_text.split("\n")[1:-1])
+        
+        summary_data = json.loads(response_text)
+        
+        return JSONResponse(content=summary_data)
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating summary: {str(e)}")
+
 @app.post("/generate-questions")
 async def generate_questions(materials: dict):
     """Generate quiz questions from uploaded materials."""
@@ -58,7 +113,24 @@ async def generate_questions(materials: dict):
         if not openai.api_key:
             raise HTTPException(status_code=500, detail="OpenAI API key not configured")
         
-        materials_text = "\n\n".join([f"{key}:\n{value}" for key, value in materials.items()])
+        # Build materials text - use summary for slides if available, otherwise use raw text
+        materials_parts = []
+        for key, value in materials.items():
+            if key == "slides_summary" and value:
+                # If slides_summary exists, use it instead of raw slides
+                materials_parts.append(f"Lecture Slides Summary:\n{value}")
+            elif key == "slides_topics" and value:
+                # Add topics list
+                if isinstance(value, list):
+                    topics_text = "\n".join([f"- {topic}" for topic in value])
+                else:
+                    topics_text = value
+                materials_parts.append(f"Topics Covered:\n{topics_text}")
+            elif key not in ["slides", "slides_summary", "slides_topics"]:
+                # Include quizzes and other materials as-is
+                materials_parts.append(f"{key}:\n{value}")
+        
+        materials_text = "\n\n".join(materials_parts)
         
         # Check if previous quizzes are included
         has_previous_quizzes = "quizzes" in materials and materials.get("quizzes", "").strip()
