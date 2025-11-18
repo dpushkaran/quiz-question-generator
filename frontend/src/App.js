@@ -4,6 +4,9 @@ import './App.css';
 
 function App() {
   const [materials, setMaterials] = useState({});
+  const [slidesSummary, setSlidesSummary] = useState('');
+  const [slidesTopics, setSlidesTopics] = useState([]);
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [regenerating, setRegenerating] = useState(null);
@@ -25,10 +28,35 @@ function App() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      setMaterials(prev => ({
-        ...prev,
-        [materialType]: response.data.content
-      }));
+      if (materialType === 'slides') {
+        // Store raw text and generate summary
+        setMaterials(prev => ({
+          ...prev,
+          [materialType]: response.data.content
+        }));
+        
+        // Generate summary
+        setSummaryLoading(true);
+        try {
+          const summaryResponse = await axios.post('/generate-slides-summary', {
+            slides_text: response.data.content
+          });
+          setSlidesSummary(summaryResponse.data.summary);
+          setSlidesTopics(summaryResponse.data.topics || []);
+        } catch (error) {
+          console.error('Error generating summary:', error);
+          alert('File uploaded but summary generation failed: ' + error.message);
+        } finally {
+          setSummaryLoading(false);
+        }
+      } else {
+        // For quizzes, just store the content
+        setMaterials(prev => ({
+          ...prev,
+          [materialType]: response.data.content
+        }));
+      }
+      
       setUploadStatus(prev => ({ ...prev, [materialType]: 'success' }));
     } catch (error) {
       setUploadStatus(prev => ({ ...prev, [materialType]: 'error' }));
@@ -42,9 +70,29 @@ function App() {
       return;
     }
 
+    // Check if slides are uploaded but summary is not ready
+    if (materials.slides && !slidesSummary) {
+      alert('Please wait for the slides summary to be generated, or edit the summary before generating questions.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await axios.post('/generate-questions', materials);
+      // Build materials object with summary instead of raw slides
+      const materialsForGeneration = { ...materials };
+      
+      // Remove raw slides and use summary instead
+      if (materials.slides) {
+        delete materialsForGeneration.slides;
+        if (slidesSummary) {
+          materialsForGeneration.slides_summary = slidesSummary;
+        }
+        if (slidesTopics.length > 0) {
+          materialsForGeneration.slides_topics = slidesTopics;
+        }
+      }
+
+      const response = await axios.post('/generate-questions', materialsForGeneration);
       const newQuestions = response.data.questions.map((q, i) => ({ ...q, id: Date.now() + i }));
       setQuestions(newQuestions);
       
@@ -112,6 +160,20 @@ function App() {
         ? allFeedback.join('\n\n--- Previous Feedback ---\n\n')
         : '';
       
+      // Build materials text for regeneration (use summary if available)
+      let materialsTextForRegen = '';
+      if (materials.slides && slidesSummary) {
+        materialsTextForRegen = `Lecture Slides Summary:\n${slidesSummary}\n\n`;
+        if (slidesTopics.length > 0) {
+          materialsTextForRegen += `Topics Covered:\n${slidesTopics.map(t => `- ${t}`).join('\n')}\n\n`;
+        }
+      } else if (materials.slides) {
+        materialsTextForRegen = `Lecture Slides:\n${materials.slides}\n\n`;
+      }
+      if (materials.quizzes) {
+        materialsTextForRegen += `Past Quizzes:\n${materials.quizzes}`;
+      }
+      
       // Save current question to history before regenerating (if it's different from the last version)
       const currentHistory = questionHistory[questionId] || [];
       const lastVersion = currentHistory.length > 0 ? currentHistory[currentHistory.length - 1] : null;
@@ -120,7 +182,7 @@ function App() {
       const response = await axios.post('/regenerate-question', {
         question_text: question.question,
         feedback: feedbackText,
-        materials: materialsText
+        materials: materialsTextForRegen
       });
 
       const newQuestion = { ...response.data.question, id: questionId };
@@ -310,10 +372,73 @@ function App() {
               )}
             </div>
           </div>
+          
+          {/* Slides Summary Section */}
+          {materials.slides && (
+            <div className="summary-section">
+              <div className="section-title">
+                <h2>Slides Summary</h2>
+                <p className="section-description">
+                  Review and edit the summary before generating questions. This summary will be used to create quiz questions.
+                </p>
+              </div>
+              
+              {summaryLoading ? (
+                <div className="summary-loading">
+                  <span className="spinner"></span>
+                  <p>Generating summary and topics list...</p>
+                </div>
+              ) : slidesSummary ? (
+                <div className="summary-container">
+                  <div className="summary-editor">
+                    <label className="summary-label">
+                      Summary (approximately 450 words):
+                    </label>
+                    <textarea
+                      value={slidesSummary}
+                      onChange={(e) => setSlidesSummary(e.target.value)}
+                      className="summary-textarea"
+                      rows="12"
+                      placeholder="Summary will appear here..."
+                    />
+                    <div className="word-count">
+                      Word count: {slidesSummary.split(/\s+/).filter(word => word.length > 0).length}
+                    </div>
+                  </div>
+                  
+                  <div className="topics-editor">
+                    <label className="topics-label">
+                      Topics Covered:
+                    </label>
+                    <div className="topics-input-container">
+                      <textarea
+                        value={slidesTopics.join('\n')}
+                        onChange={(e) => {
+                          const topics = e.target.value.split('\n').filter(t => t.trim().length > 0);
+                          setSlidesTopics(topics);
+                        }}
+                        className="topics-textarea"
+                        rows="8"
+                        placeholder="One topic per line..."
+                      />
+                      <div className="topics-count">
+                        {slidesTopics.length} {slidesTopics.length === 1 ? 'topic' : 'topics'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="summary-placeholder">
+                  <p>Summary will be generated after slides are uploaded...</p>
+                </div>
+              )}
+            </div>
+          )}
+          
           <div className="generate-section">
             <button 
               onClick={handleGenerateQuestions}
-              disabled={loading || Object.keys(materials).length === 0}
+              disabled={loading || Object.keys(materials).length === 0 || (materials.slides && !slidesSummary)}
               className="generate-btn"
             >
               {loading ? (
@@ -330,6 +455,9 @@ function App() {
             </button>
             {Object.keys(materials).length === 0 && (
               <p className="generate-hint">Upload at least one file to generate questions</p>
+            )}
+            {materials.slides && !slidesSummary && !summaryLoading && (
+              <p className="generate-hint">Waiting for summary generation...</p>
             )}
           </div>
         </section>
