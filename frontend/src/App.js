@@ -45,7 +45,8 @@ function App() {
           setSlidesTopics(summaryResponse.data.topics || []);
         } catch (error) {
           console.error('Error generating summary:', error);
-          alert('File uploaded but summary generation failed: ' + error.message);
+          const message = error?.response?.data?.detail || error.message;
+          alert('File uploaded but summary generation failed: ' + message);
         } finally {
           setSummaryLoading(false);
         }
@@ -60,7 +61,8 @@ function App() {
       setUploadStatus(prev => ({ ...prev, [materialType]: 'success' }));
     } catch (error) {
       setUploadStatus(prev => ({ ...prev, [materialType]: 'error' }));
-      alert('Error uploading file: ' + error.message);
+      const message = error?.response?.data?.detail || error.message;
+      alert('Error uploading file: ' + message);
     }
   };
 
@@ -103,7 +105,8 @@ function App() {
       });
       setQuestionHistory(newHistory);
     } catch (error) {
-      alert('Error generating questions: ' + error.message);
+      const message = error?.response?.data?.detail || error.message;
+      alert('Error generating questions: ' + message);
     } finally {
       setLoading(false);
     }
@@ -236,7 +239,8 @@ function App() {
         return newFeedback;
       });
     } catch (error) {
-      alert('Error regenerating question: ' + error.message);
+      const message = error?.response?.data?.detail || error.message;
+      alert('Error regenerating question: ' + message);
     } finally {
       setRegenerating(null);
     }

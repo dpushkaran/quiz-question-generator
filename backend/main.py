@@ -2,14 +2,18 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-import openai
+from openai import OpenAI
 import os
 import tempfile
 import shutil
 from typing import Optional, List
 import json
+import logging
+import re
 
 app = FastAPI()
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("quiz-generator")
 
 # Configure CORS
 app.add_middleware(
@@ -21,7 +25,8 @@ app.add_middleware(
 )
 
 # OpenAI configuration
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai_api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=openai_api_key) if openai_api_key else None
 
 class RegenerateRequest(BaseModel):
     question_text: str
@@ -30,6 +35,128 @@ class RegenerateRequest(BaseModel):
 
 class SummaryRequest(BaseModel):
     slides_text: str
+
+def _extract_json_payload(raw_text: str) -> str:
+    cleaned = raw_text.strip()
+    if cleaned.startswith("```"):
+        cleaned = "\n".join(cleaned.split("\n")[1:-1]).strip()
+    json_match = re.search(r"(\{.*\}|\[.*\])", cleaned, re.DOTALL)
+    if json_match:
+        return json_match.group(1).strip()
+    return cleaned
+
+
+def _parse_question_format(raw_text: str) -> dict:
+    """Parse the custom Question/Answerlist/Solution format into a structured dict.
+    
+    Format matches finetune_data.jsonl:
+    - Multiple Choice: Question, Answerlist (options), Solution, Answerlist (True/False markers)
+    - Free Response: Question, Solution (no Answerlist before Solution)
+    """
+    result = {
+        "question": "",
+        "question_type": "free_response",
+        "options": None,
+        "correct_answer": "",
+        "explanation": "",
+        "supplemental_data": None
+    }
+    
+    try:
+        text = raw_text.strip()
+        
+        # Extract question text - handle both "Question\n========" and "Question\n========"
+        question_match = re.search(r'Question\n=+\n?(.*?)(?=\n\nAnswerlist\n-+|\n\nSolution\n=+|$)', text, re.DOTALL)
+        if question_match:
+            result["question"] = question_match.group(1).strip()
+        
+        # Find positions of key sections
+        # Look for Answerlist before Solution (indicates multiple choice)
+        first_answerlist_match = re.search(r'\n\nAnswerlist\n-+\n', text)
+        solution_match = re.search(r'\n\nSolution\n=+\n?', text)
+        
+        first_answerlist_pos = first_answerlist_match.start() if first_answerlist_match else -1
+        solution_pos = solution_match.start() if solution_match else -1
+        
+        # Determine if multiple choice (Answerlist appears before Solution)
+        is_multiple_choice = first_answerlist_pos != -1 and (solution_pos == -1 or first_answerlist_pos < solution_pos)
+        
+        if is_multiple_choice:
+            result["question_type"] = "multiple_choice"
+            
+            # Extract answer options (between first Answerlist and Solution)
+            answerlist_content_start = first_answerlist_match.end()
+            if solution_pos != -1:
+                answerlist_text = text[answerlist_content_start:solution_pos]
+            else:
+                answerlist_text = text[answerlist_content_start:]
+            
+            # Parse options - lines starting with "* "
+            options = {}
+            option_labels = ["A", "B", "C", "D", "E", "F", "G", "H"]
+            option_lines = [line.strip() for line in answerlist_text.split("\n") if line.strip().startswith("*")]
+            
+            for i, line in enumerate(option_lines[:len(option_labels)]):
+                # Remove leading "* " from the option text
+                option_text = line[1:].strip() if line.startswith("*") else line.strip()
+                options[option_labels[i]] = option_text
+            
+            result["options"] = options if options else None
+            
+            # Extract Solution section
+            if solution_match:
+                solution_content_start = solution_match.end()
+                solution_text = text[solution_content_start:].strip()
+                
+                # Check for second Answerlist in solution (contains True/False/Correct/Incorrect markers)
+                second_answerlist_match = re.search(r'\n\nAnswerlist\n-+\n', solution_text)
+                if not second_answerlist_match:
+                    # Try without double newline
+                    second_answerlist_match = re.search(r'\nAnswerlist\n-+\n', solution_text)
+                
+                if second_answerlist_match:
+                    # Explanation is text before the second Answerlist
+                    result["explanation"] = solution_text[:second_answerlist_match.start()].strip()
+                    
+                    # Parse correct answer markers
+                    markers_text = solution_text[second_answerlist_match.end():]
+                    marker_lines = [line.strip() for line in markers_text.split("\n") if line.strip().startswith("*")]
+                    
+                    for i, line in enumerate(marker_lines[:len(option_labels)]):
+                        marker_text = line[1:].strip().lower() if line.startswith("*") else line.strip().lower()
+                        # Check for various correct indicators: "true", "correct", "right"
+                        # But not "incorrect", "false", "not correct"
+                        is_correct = False
+                        if "incorrect" not in marker_text and "false" not in marker_text:
+                            if "correct" in marker_text or "true" in marker_text or "right" in marker_text:
+                                is_correct = True
+                        
+                        if is_correct:
+                            result["correct_answer"] = option_labels[i]
+                            break
+                else:
+                    # No second Answerlist - entire solution is the explanation
+                    result["explanation"] = solution_text
+        else:
+            # Free response question
+            result["question_type"] = "free_response"
+            
+            if solution_match:
+                solution_content_start = solution_match.end()
+                solution_text = text[solution_content_start:].strip()
+                result["correct_answer"] = solution_text
+                result["explanation"] = solution_text
+        
+        # Fallback: if no question was extracted, use the whole text
+        if not result["question"]:
+            result["question"] = raw_text.strip()
+            
+    except Exception as e:
+        logger.error(f"Error parsing question format: {e}")
+        # Fallback: return the raw text as the question
+        result["question"] = raw_text.strip()
+    
+    return result
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
@@ -58,16 +185,20 @@ async def upload_file(file: UploadFile = File(...)):
 async def generate_slides_summary(request: SummaryRequest):
     """Generate a summary and topic list from slides text."""
     try:
-        if not openai.api_key:
+        if not openai_api_key or client is None:
             raise HTTPException(status_code=500, detail="OpenAI API key not configured")
-        
+
+        slides_text = request.slides_text.strip()
+        if not slides_text:
+            raise HTTPException(status_code=400, detail="Slides text is empty")
+
         prompt = f"""You are an expert at analyzing educational content. Based on the following lecture slides, create:
 
 1. A comprehensive summary of approximately 450 words that captures the key concepts, main ideas, and important information covered in the slides.
 2. A complete list of all topics covered in the slides.
 
 Lecture Slides Content:
-{request.slides_text}
+{slides_text}
 
 Please provide your response as a JSON object with this exact structure:
 {{
@@ -84,7 +215,7 @@ The topics list should include ALL major topics, concepts, and themes covered in
 
 Return ONLY the JSON object, no additional text."""
 
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are an expert educational content analyzer."},
@@ -93,24 +224,28 @@ Return ONLY the JSON object, no additional text."""
             temperature=0.3,
             max_tokens=1500
         )
-        
+
         response_text = response.choices[0].message.content.strip()
-        
-        if response_text.startswith("```"):
-            response_text = "\n".join(response_text.split("\n")[1:-1])
-        
-        summary_data = json.loads(response_text)
+        json_payload = _extract_json_payload(response_text)
+        summary_data = json.loads(json_payload)
         
         return JSONResponse(content=summary_data)
-    
+
+    except json.JSONDecodeError as e:
+        logger.exception("Failed to parse summary JSON")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Summary response was not valid JSON: {str(e)}"
+        )
     except Exception as e:
+        logger.exception("Unexpected error generating summary")
         raise HTTPException(status_code=500, detail=f"Error generating summary: {str(e)}")
 
 @app.post("/generate-questions")
 async def generate_questions(materials: dict):
     """Generate quiz questions from uploaded materials."""
     try:
-        if not openai.api_key:
+        if not openai_api_key or client is None:
             raise HTTPException(status_code=500, detail="OpenAI API key not configured")
         
         # Build materials text - use summary for slides if available, otherwise use raw text
@@ -135,7 +270,7 @@ async def generate_questions(materials: dict):
         # Check if previous quizzes are included
         has_previous_quizzes = "quizzes" in materials and materials.get("quizzes", "").strip()
         
-        prompt = f"""You are an expert at creating educational quiz questions. Based on the following course materials, generate 5 diverse quiz questions that test understanding of key concepts.
+        base_prompt = f"""You are an expert at creating educational quiz questions. Based on the following course materials, generate ONE quiz question that tests understanding of key concepts.
 
 Course Materials:
 {materials_text}
@@ -154,89 +289,96 @@ CRITICAL INSTRUCTIONS:
    - Different variable names and contexts
    - Different specific details while maintaining the same conceptual focus
 5. If a question requires supplemental data (like a dataset, table, figure, code snippet, or data file), you MUST include that data in the "supplemental_data" field. This supplemental data must also be ORIGINAL and not copied from previous quizzes.
+6. If previous generated questions are provided below, do NOT duplicate them. Make this question distinct.
+7. You may create EITHER a multiple choice question OR a free response question. Choose the format that best suits the concept being tested.
 
-IMPORTANT: Generate a mix of question types:
-- Some questions should be MULTIPLE CHOICE (with options A, B, C, D)
-- Some questions should be FREE RESPONSE (short answer questions where students write their answer)
+IMPORTANT: Use the exact output format below (matching our fine-tuning data). Do NOT output JSON.
 
-For each question, provide:
-1. The question text
-2. The question type ("multiple_choice" or "free_response")
-3. If multiple choice: options (A, B, C, D)
-4. The correct answer (ALWAYS REQUIRED - for multiple choice use the letter, for free response provide the expected answer)
-5. A brief explanation
-6. If the question requires supplemental data (datasets, tables, figures, code, etc.), include it in "supplemental_data"
+=== FORMAT A: MULTIPLE CHOICE ===
+Use this format for questions with discrete answer options:
 
-Format your response as a JSON array with this structure:
+Question
+========
+<question text>
 
-For MULTIPLE CHOICE questions:
-{{
-  "question": "Question text here?",
-  "question_type": "multiple_choice",
-  "options": {{
-    "A": "Option A",
-    "B": "Option B",
-    "C": "Option C",
-    "D": "Option D"
-  }},
-  "correct_answer": "A",
-  "explanation": "Brief explanation of the correct answer",
-  "supplemental_data": null
-}}
+Answerlist
+----------
+* <answer option 1>
+* <answer option 2>
+* <answer option 3>
+* <answer option 4>
 
-For FREE RESPONSE questions:
-{{
-  "question": "Question text here?",
-  "question_type": "free_response",
-  "options": null,
-  "correct_answer": "The expected correct answer or key points that should be included",
-  "explanation": "Brief explanation of the correct answer",
-  "supplemental_data": null
-}}
+Solution
+========
+<optional explanation text>
 
-If a question requires supplemental data (e.g., a dataset, table, figure, code snippet), include it like this:
-{{
-  "question": "Question that requires data...",
-  "question_type": "multiple_choice",
-  "options": {{...}},
-  "correct_answer": "A",
-  "explanation": "...",
-  "supplemental_data": {{
-    "type": "dataset|table|figure|code|other",
-    "description": "Brief description of what the supplemental data is",
-    "data": "The actual data, table content, code, or description of where to find it. For datasets, provide CSV-like format or structured data."
-  }}
-}}
+Answerlist
+----------
+* <Correct or Incorrect>
+* <Correct or Incorrect>
+* <Correct or Incorrect>
+* <Correct or Incorrect>
 
-Return ONLY the JSON array, no additional text. Include a mix of both question types. 
+Multiple Choice Rules:
+- Always output 4 answer options.
+- Exactly one option must be marked Correct; the other three must be Incorrect.
+- Keep formatting exactly as shown (headings, separators, bullets, and blank lines).
+
+=== FORMAT B: FREE RESPONSE ===
+Use this format for open-ended questions, calculations, fill-in-the-blank, or short answer:
+
+Question
+========
+<question text>
+
+Solution
+========
+<detailed answer and explanation>
+
+Free Response Rules:
+- No Answerlist section for the question.
+- Solution should contain the expected answer and explanation.
+- Good for: calculations, derivations, fill-in-the-blank, short answer, and conceptual explanations.
+
+=== GENERAL RULES ===
+- Return ONLY the formatted question, no additional text.
+- Choose the format that best tests the concept (use free response for calculations and open-ended questions; use multiple choice for factual recall and concept recognition).
 
 REMEMBER: 
 - ALL questions must be ORIGINAL and NOT copied from previous quizzes
 - ALL values, numbers, datasets, examples, and data must be NEW and DIFFERENT from previous quizzes
 - Create fresh scenarios, examples, and data while testing the same concepts"""
 
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are an expert educational content creator."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=2000
-        )
-        
-        response_text = response.choices[0].message.content.strip()
-        
-        if response_text.startswith("```"):
-            response_text = "\n".join(response_text.split("\n")[1:-1])
-        
-        questions = json.loads(response_text)
-        
-        # Ensure all questions have supplemental_data field (set to null if not provided)
-        for question in questions:
-            if "supplemental_data" not in question:
-                question["supplemental_data"] = None
-        
+        questions = []
+        for i in range(10):
+            previous_questions = ""
+            if questions:
+                # Extract just the question text from each previous response for deduplication
+                prev_q_texts = []
+                for q in questions:
+                    # q is now a parsed dict with 'question' key
+                    q_text = q.get("question", "")
+                    if q_text:
+                        prev_q_texts.append(f"- {q_text[:200]}...")  # Truncate for brevity
+                previous_questions = "\n\nPreviously generated questions:\n" + "\n".join(prev_q_texts)
+
+            prompt = base_prompt + previous_questions
+
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "You are an expert educational content creator."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=1000
+            )
+
+            response_text = response.choices[0].message.content.strip()
+            # Parse the formatted text into a structured dict
+            parsed_question = _parse_question_format(response_text)
+            questions.append(parsed_question)
+
         return JSONResponse(content={"questions": questions})
     
     except Exception as e:
@@ -246,7 +388,7 @@ REMEMBER:
 async def regenerate_question(request: RegenerateRequest):
     """Regenerate a specific question based on feedback."""
     try:
-        if not openai.api_key:
+        if not openai_api_key or client is None:
             raise HTTPException(status_code=500, detail="OpenAI API key not configured")
         
         prompt = f"""You are an expert at creating educational quiz questions. 
@@ -322,7 +464,7 @@ REMEMBER:
 
 Return ONLY the JSON object, no additional text."""
 
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are an expert educational content creator."},
@@ -331,7 +473,7 @@ Return ONLY the JSON object, no additional text."""
             temperature=0.7,
             max_tokens=1000
         )
-        
+
         response_text = response.choices[0].message.content.strip()
         
         if response_text.startswith("```"):
@@ -350,4 +492,6 @@ Return ONLY the JSON object, no additional text."""
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run(app, host=host, port=port)
