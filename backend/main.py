@@ -108,15 +108,13 @@ def _parse_question_format(raw_text: str) -> dict:
                 solution_content_start = solution_match.end()
                 solution_text = text[solution_content_start:].strip()
                 
-                # Check for second Answerlist in solution (contains True/False/Correct/Incorrect markers)
-                second_answerlist_match = re.search(r'\n\nAnswerlist\n-+\n', solution_text)
-                if not second_answerlist_match:
-                    # Try without double newline
-                    second_answerlist_match = re.search(r'\nAnswerlist\n-+\n', solution_text)
+                # Find the Answerlist with Correct/Incorrect markers inside the solution.
+                # It may appear after a blank line, after a single newline, or at the
+                # very start of solution_text (no leading newline at all).
+                second_answerlist_match = re.search(r'Answerlist\n-+\n', solution_text)
                 
                 if second_answerlist_match:
-                    # Explanation is text before the second Answerlist
-                    result["explanation"] = solution_text[:second_answerlist_match.start()].strip()
+                    explanation_text = solution_text[:second_answerlist_match.start()].strip()
                     
                     # Parse correct answer markers
                     markers_text = solution_text[second_answerlist_match.end():]
@@ -124,8 +122,6 @@ def _parse_question_format(raw_text: str) -> dict:
                     
                     for i, line in enumerate(marker_lines[:len(option_labels)]):
                         marker_text = line[1:].strip().lower() if line.startswith("*") else line.strip().lower()
-                        # Check for various correct indicators: "true", "correct", "right"
-                        # But not "incorrect", "false", "not correct"
                         is_correct = False
                         if "incorrect" not in marker_text and "false" not in marker_text:
                             if "correct" in marker_text or "true" in marker_text or "right" in marker_text:
@@ -134,6 +130,14 @@ def _parse_question_format(raw_text: str) -> dict:
                         if is_correct:
                             result["correct_answer"] = option_labels[i]
                             break
+                    
+                    # If model provided no explanation text, build a fallback
+                    if not explanation_text and result["correct_answer"] and result.get("options"):
+                        correct_label = result["correct_answer"]
+                        correct_text = result["options"].get(correct_label, "")
+                        explanation_text = f"The correct answer is {correct_label}. {correct_text}"
+                    
+                    result["explanation"] = explanation_text
                 else:
                     # No second Answerlist - entire solution is the explanation
                     result["explanation"] = solution_text
@@ -310,7 +314,7 @@ Answerlist
 
 Solution
 ========
-<optional explanation text>
+<Provide a clear, educational explanation of WHY the correct answer is right and why the other options are wrong. This MUST be a real explanation, not just labels. For example: "The t-test is appropriate here because we are comparing two group means with normally distributed data. A chi-square test would be incorrect because it is used for categorical data.">
 
 Answerlist
 ----------
@@ -322,6 +326,7 @@ Answerlist
 Multiple Choice Rules:
 - Always output 4 answer options.
 - Exactly one option must be marked Correct; the other three must be Incorrect.
+- The explanation between "Solution" and the second "Answerlist" MUST be a substantive explanation (at least 1-2 sentences explaining why the answer is correct).
 - Keep formatting exactly as shown (headings, separators, bullets, and blank lines).
 
 === FORMAT B: FREE RESPONSE ===
@@ -343,6 +348,7 @@ Free Response Rules:
 === GENERAL RULES ===
 - Return ONLY the formatted question, no additional text.
 - Choose the format that best tests the concept (use free response for calculations and open-ended questions; use multiple choice for factual recall and concept recognition).
+- For BOTH formats, the Solution section MUST contain a real educational explanation (not just "Correct"/"Incorrect" labels). Explain WHY the answer is correct.
 
 REMEMBER: 
 - ALL questions must be ORIGINAL and NOT copied from previous quizzes
@@ -375,8 +381,11 @@ REMEMBER:
             )
 
             response_text = response.choices[0].message.content.strip()
-            # Parse the formatted text into a structured dict
+            logger.info(f"Raw model output for question {i+1}:\n{response_text[:500]}")
             parsed_question = _parse_question_format(response_text)
+            logger.info(f"Parsed question {i+1}: type={parsed_question['question_type']}, "
+                        f"correct_answer='{parsed_question['correct_answer']}', "
+                        f"explanation_preview='{parsed_question['explanation'][:100]}...'")
             questions.append(parsed_question)
 
         return JSONResponse(content={"questions": questions})
