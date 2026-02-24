@@ -63,17 +63,19 @@ def _parse_question_format(raw_text: str) -> dict:
     }
     
     try:
-        text = raw_text.strip()
+        # Normalize: strip trailing whitespace from each line so regexes aren't
+        # broken by the model appending spaces after section headers.
+        text = '\n'.join(line.rstrip() for line in raw_text.strip().split('\n'))
         
-        # Extract question text - handle both "Question\n========" and "Question\n========"
-        question_match = re.search(r'Question\n=+\n?(.*?)(?=\n\nAnswerlist\n-+|\n\nSolution\n=+|$)', text, re.DOTALL)
+        # Extract question text; stop at the first Answerlist or Solution header
+        # (allow 1+ newlines before section headers since model output varies)
+        question_match = re.search(r'Question\n=+\n?(.*?)(?=\n+Answerlist\n-+|\n+Solution\n=+|$)', text, re.DOTALL)
         if question_match:
             result["question"] = question_match.group(1).strip()
         
-        # Find positions of key sections
-        # Look for Answerlist before Solution (indicates multiple choice)
-        first_answerlist_match = re.search(r'\n\nAnswerlist\n-+\n', text)
-        solution_match = re.search(r'\n\nSolution\n=+\n?', text)
+        # Find positions of key sections (flexible: 1+ newlines before headers)
+        first_answerlist_match = re.search(r'\n+Answerlist\n-+\n', text)
+        solution_match = re.search(r'\n+Solution\n=+\n?', text)
         
         first_answerlist_pos = first_answerlist_match.start() if first_answerlist_match else -1
         solution_pos = solution_match.start() if solution_match else -1
@@ -148,8 +150,59 @@ def _parse_question_format(raw_text: str) -> dict:
             if solution_match:
                 solution_content_start = solution_match.end()
                 solution_text = text[solution_content_start:].strip()
-                result["correct_answer"] = solution_text
-                result["explanation"] = solution_text
+                
+                # Safety: if solution_text contains Answerlist markers AND there
+                # is a separate Answerlist with real options BEFORE Solution in the
+                # full text, re-classify as multiple choice.
+                answerlist_in_solution = re.search(r'Answerlist\n-+\n', solution_text)
+                answerlist_in_full = re.search(r'Answerlist\n-+\n', text)
+                
+                has_options_before_solution = (
+                    answerlist_in_full is not None
+                    and answerlist_in_full.start() < solution_match.start()
+                )
+                
+                if answerlist_in_solution and has_options_before_solution:
+                    result["question_type"] = "multiple_choice"
+                    
+                    option_labels = ["A", "B", "C", "D", "E", "F", "G", "H"]
+                    
+                    first_al_end = answerlist_in_full.end()
+                    options_text = text[first_al_end:solution_match.start()]
+                    option_lines = [l.strip() for l in options_text.split("\n") if l.strip().startswith("*")]
+                    options = {}
+                    for i, line in enumerate(option_lines[:len(option_labels)]):
+                        option_text = line[1:].strip() if line.startswith("*") else line.strip()
+                        options[option_labels[i]] = option_text
+                    result["options"] = options if options else None
+                    
+                    explanation_text = solution_text[:answerlist_in_solution.start()].strip()
+                    markers_text = solution_text[answerlist_in_solution.end():]
+                    marker_lines = [l.strip() for l in markers_text.split("\n") if l.strip().startswith("*")]
+                    for i, line in enumerate(marker_lines[:len(option_labels)]):
+                        marker_text = line[1:].strip().lower() if line.startswith("*") else line.strip().lower()
+                        is_correct = False
+                        if "incorrect" not in marker_text and "false" not in marker_text:
+                            if "correct" in marker_text or "true" in marker_text or "right" in marker_text:
+                                is_correct = True
+                        if is_correct:
+                            result["correct_answer"] = option_labels[i]
+                            break
+                    
+                    if not explanation_text and result["correct_answer"] and result.get("options"):
+                        correct_label = result["correct_answer"]
+                        correct_text = result["options"].get(correct_label, "")
+                        explanation_text = f"The correct answer is {correct_label}. {correct_text}"
+                    result["explanation"] = explanation_text
+                else:
+                    # Genuine free response — strip any stray Correct/Incorrect
+                    # Answerlist block that the model appended after the explanation.
+                    if answerlist_in_solution:
+                        clean_text = solution_text[:answerlist_in_solution.start()].strip()
+                    else:
+                        clean_text = solution_text
+                    result["correct_answer"] = clean_text
+                    result["explanation"] = clean_text
         
         # Fallback: if no question was extracted, use the whole text
         if not result["question"]:
