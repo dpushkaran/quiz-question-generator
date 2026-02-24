@@ -216,7 +216,7 @@ The topics list should include ALL major topics, concepts, and themes covered in
 Return ONLY the JSON object, no additional text."""
 
         response = client.chat.completions.create(
-            model="ft:gpt-4.1-2025-04-14:polsley:stats-quiz-topics-v1-retry-due-to-funds-2:D5dbzZ3u",
+            model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are an expert educational content analyzer."},
                 {"role": "user", "content": prompt}
