@@ -216,7 +216,7 @@ The topics list should include ALL major topics, concepts, and themes covered in
 Return ONLY the JSON object, no additional text."""
 
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="ft:gpt-4.1-2025-04-14:polsley:stats-quiz-topics-v1-retry-due-to-funds-2:D5dbzZ3u",
             messages=[
                 {"role": "system", "content": "You are an expert educational content analyzer."},
                 {"role": "user", "content": prompt}
@@ -350,7 +350,7 @@ REMEMBER:
 - Create fresh scenarios, examples, and data while testing the same concepts"""
 
         questions = []
-        for i in range(10):
+        for i in range(5):
             previous_questions = ""
             if questions:
                 # Extract just the question text from each previous response for deduplication
@@ -365,7 +365,7 @@ REMEMBER:
             prompt = base_prompt + previous_questions
 
             response = client.chat.completions.create(
-                model="gpt-4",
+                model="ft:gpt-4.1-2025-04-14:polsley:stats-quiz-topics-v1-retry-due-to-funds-2:D5dbzZ3u",
                 messages=[
                     {"role": "system", "content": "You are an expert educational content creator."},
                     {"role": "user", "content": prompt}
@@ -414,11 +414,6 @@ Address all concerns and improvements mentioned across all feedback sections.\n\
 Context from course materials:
 {request.materials}
 
-CRITICAL INSTRUCTIONS:
-1. Do NOT copy the original question. Create a NEW question that addresses the feedback while testing similar concepts.
-2. Do NOT copy any VALUES, NUMBERS, DATASETS, EXAMPLES, or DATA from the original question. Use completely NEW and DIFFERENT values, examples, scenarios, and data.
-3. Create fresh numerical values, sample data, examples, and scenarios while maintaining the same conceptual focus.
-
 Regenerate this question as a JSON object. You can create either a multiple choice or free response question.
 
 For MULTIPLE CHOICE questions, use this structure:
@@ -465,7 +460,7 @@ REMEMBER:
 Return ONLY the JSON object, no additional text."""
 
         response = client.chat.completions.create(
-            model="gpt-4",
+            model="ft:gpt-4.1-2025-04-14:polsley:stats-quiz-topics-v1-retry-due-to-funds-2:D5dbzZ3u",
             messages=[
                 {"role": "system", "content": "You are an expert educational content creator."},
                 {"role": "user", "content": prompt}
