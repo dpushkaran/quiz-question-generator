@@ -27,6 +27,62 @@ app.add_middleware(
 # OpenAI configuration
 openai_api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=openai_api_key) if openai_api_key else None
+DEFAULT_MODEL = "gpt-4"
+FINE_TUNED_MODEL = "ft:gpt-4.1-2025-04-14:polsley:stats-quiz-topics-v1-retry-due-to-funds-2:D5dbzZ3u"
+
+QUESTION_OUTPUT_FORMAT = """IMPORTANT: Use the exact output format below (matching our fine-tuning data). Do NOT output JSON.
+
+=== FORMAT A: MULTIPLE CHOICE ===
+Use this format for questions with discrete answer options:
+
+Question
+========
+<question text>
+
+Answerlist
+----------
+* <answer option 1>
+* <answer option 2>
+* <answer option 3>
+* <answer option 4>
+
+Solution
+========
+<Provide a clear, educational explanation of WHY the correct answer is right and why the other options are wrong. This MUST be a real explanation, not just labels. For example: "The t-test is appropriate here because we are comparing two group means with normally distributed data. A chi-square test would be incorrect because it is used for categorical data.">
+
+Answerlist
+----------
+* <Correct or Incorrect>
+* <Correct or Incorrect>
+* <Correct or Incorrect>
+* <Correct or Incorrect>
+
+Multiple Choice Rules:
+- Always output 4 answer options.
+- Exactly one option must be marked Correct; the other three must be Incorrect.
+- The explanation between "Solution" and the second "Answerlist" MUST be a substantive explanation (at least 1-2 sentences explaining why the answer is correct).
+- Keep formatting exactly as shown (headings, separators, bullets, and blank lines).
+
+=== FORMAT B: FREE RESPONSE ===
+Use this format for open-ended questions, calculations, fill-in-the-blank, or short answer:
+
+Question
+========
+<question text>
+
+Solution
+========
+<detailed answer and explanation>
+
+Free Response Rules:
+- No Answerlist section for the question.
+- Solution should contain the expected answer and explanation.
+- Good for: calculations, derivations, fill-in-the-blank, short answer, and conceptual explanations.
+
+=== GENERAL RULES ===
+- Return ONLY the formatted question, no additional text.
+- Choose the format that best tests the concept (use free response for calculations and open-ended questions; use multiple choice for factual recall and concept recognition).
+- For BOTH formats, the Solution section MUST contain a real educational explanation (not just "Correct"/"Incorrect" labels). Explain WHY the answer is correct."""
 
 class RegenerateRequest(BaseModel):
     question_text: str
@@ -273,7 +329,7 @@ The topics list should include ALL major topics, concepts, and themes covered in
 Return ONLY the JSON object, no additional text."""
 
         response = client.chat.completions.create(
-            model="gpt-4",
+            model=DEFAULT_MODEL,
             messages=[
                 {"role": "system", "content": "You are an expert educational content analyzer."},
                 {"role": "user", "content": prompt}
@@ -349,59 +405,7 @@ CRITICAL INSTRUCTIONS:
 6. If previous generated questions are provided below, do NOT duplicate them. Make this question distinct.
 7. You may create EITHER a multiple choice question OR a free response question. Choose the format that best suits the concept being tested.
 
-IMPORTANT: Use the exact output format below (matching our fine-tuning data). Do NOT output JSON.
-
-=== FORMAT A: MULTIPLE CHOICE ===
-Use this format for questions with discrete answer options:
-
-Question
-========
-<question text>
-
-Answerlist
-----------
-* <answer option 1>
-* <answer option 2>
-* <answer option 3>
-* <answer option 4>
-
-Solution
-========
-<Provide a clear, educational explanation of WHY the correct answer is right and why the other options are wrong. This MUST be a real explanation, not just labels. For example: "The t-test is appropriate here because we are comparing two group means with normally distributed data. A chi-square test would be incorrect because it is used for categorical data.">
-
-Answerlist
-----------
-* <Correct or Incorrect>
-* <Correct or Incorrect>
-* <Correct or Incorrect>
-* <Correct or Incorrect>
-
-Multiple Choice Rules:
-- Always output 4 answer options.
-- Exactly one option must be marked Correct; the other three must be Incorrect.
-- The explanation between "Solution" and the second "Answerlist" MUST be a substantive explanation (at least 1-2 sentences explaining why the answer is correct).
-- Keep formatting exactly as shown (headings, separators, bullets, and blank lines).
-
-=== FORMAT B: FREE RESPONSE ===
-Use this format for open-ended questions, calculations, fill-in-the-blank, or short answer:
-
-Question
-========
-<question text>
-
-Solution
-========
-<detailed answer and explanation>
-
-Free Response Rules:
-- No Answerlist section for the question.
-- Solution should contain the expected answer and explanation.
-- Good for: calculations, derivations, fill-in-the-blank, short answer, and conceptual explanations.
-
-=== GENERAL RULES ===
-- Return ONLY the formatted question, no additional text.
-- Choose the format that best tests the concept (use free response for calculations and open-ended questions; use multiple choice for factual recall and concept recognition).
-- For BOTH formats, the Solution section MUST contain a real educational explanation (not just "Correct"/"Incorrect" labels). Explain WHY the answer is correct.
+{QUESTION_OUTPUT_FORMAT}
 
 REMEMBER: 
 - ALL questions must be ORIGINAL and NOT copied from previous quizzes
@@ -424,7 +428,7 @@ REMEMBER:
             prompt = base_prompt + previous_questions
 
             response = client.chat.completions.create(
-                model="ft:gpt-4.1-2025-04-14:polsley:stats-quiz-topics-v1-retry-due-to-funds-2:D5dbzZ3u",
+                model=FINE_TUNED_MODEL,
                 messages=[
                     {"role": "system", "content": "You are an expert educational content creator."},
                     {"role": "user", "content": prompt}
@@ -476,53 +480,17 @@ Address all concerns and improvements mentioned across all feedback sections.\n\
 Context from course materials:
 {request.materials}
 
-Regenerate this question as a JSON object. You can create either a multiple choice or free response question.
+Regenerate this question incorporating the feedback above. You may create either a multiple choice or free response question.
 
-For MULTIPLE CHOICE questions, use this structure:
-{{
-  "question": "Question text here?",
-  "question_type": "multiple_choice",
-  "options": {{
-    "A": "Option A",
-    "B": "Option B",
-    "C": "Option C",
-    "D": "Option D"
-  }},
-  "correct_answer": "A",
-  "explanation": "Brief explanation of the correct answer",
-  "supplemental_data": null
-}}
+{QUESTION_OUTPUT_FORMAT}
 
-For FREE RESPONSE questions, use this structure:
-{{
-  "question": "Question text here?",
-  "question_type": "free_response",
-  "options": null,
-  "correct_answer": "The expected correct answer or key points that should be included",
-  "explanation": "Brief explanation of the correct answer",
-  "supplemental_data": null
-}}
-
-If the question requires supplemental data (dataset, table, figure, code, etc.), include it in "supplemental_data":
-{{
-  "supplemental_data": {{
-    "type": "dataset|table|figure|code|other",
-    "description": "Brief description",
-    "data": "The actual data or content"
-  }}
-}}
-
-IMPORTANT: Always include the "correct_answer" field regardless of question type. If no supplemental data is needed, set "supplemental_data" to null.
-
-REMEMBER: 
+REMEMBER:
 - Create a NEW question, not a copy of the original
 - Use NEW values, numbers, datasets, examples, and data - do not reuse any values from the original question
-- Test the same concepts but with completely different specifics
-
-Return ONLY the JSON object, no additional text."""
+- Test the same concepts but with completely different specifics"""
 
         response = client.chat.completions.create(
-            model="ft:gpt-4.1-2025-04-14:polsley:stats-quiz-topics-v1-retry-due-to-funds-2:D5dbzZ3u",
+            model=FINE_TUNED_MODEL,
             messages=[
                 {"role": "system", "content": "You are an expert educational content creator."},
                 {"role": "user", "content": prompt}
@@ -532,16 +500,9 @@ Return ONLY the JSON object, no additional text."""
         )
 
         response_text = response.choices[0].message.content.strip()
-        
-        if response_text.startswith("```"):
-            response_text = "\n".join(response_text.split("\n")[1:-1])
-        
-        question = json.loads(response_text)
-        
-        # Ensure supplemental_data field exists
-        if "supplemental_data" not in question:
-            question["supplemental_data"] = None
-        
+        logger.info(f"Raw model output for regenerated question:\n{response_text[:500]}")
+        question = _parse_question_format(response_text)
+
         return JSONResponse(content={"question": question})
     
     except Exception as e:

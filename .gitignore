@@ -6,9 +6,11 @@ __pycache__/
 .Python
 env/
 venv/
+.venv/
 *.egg-info/
 dist/
 build/
+.ipynb_checkpoints/
 
 # Node
 node_modules/
@@ -35,6 +37,9 @@ frontend/.env.production.local
 .DS_Store
 Thumbs.db
 
-# Environment
+# Secrets (never commit API keys)
 .env
-*.env
+frontend/.env
+
+# Analysis outputs are regenerated locally from Data/
+analysis/out/

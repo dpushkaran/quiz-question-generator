@@ -1,0 +1,7 @@
+pandas>=2.2.0
+numpy>=1.26.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
+statsmodels>=0.14.0
+scipy>=1.11.0
+girth>=0.8.0
